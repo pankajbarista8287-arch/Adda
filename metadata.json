@@ -1,0 +1,6 @@
+{
+  "name": "ADDA",
+  "description": "Indian social voice rooms, ADDA groups, PK battles, animated gifting, families, agencies, and community rankings.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

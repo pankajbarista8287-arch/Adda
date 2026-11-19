@@ -1,0 +1,575 @@
+{
+  "entities": {
+    "AdminRegistry": {
+      "title": "AdminRegistry",
+      "description": "Authorized server-verified ADDA administrator account (AKKI_ADMIN).",
+      "type": "object",
+      "properties": {
+        "adminUid": { "type": "string" },
+        "adminCode": { "type": "string", "enum": ["AKKI_ADMIN"] },
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["SUPER_ADMIN", "MODERATOR"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["adminUid", "adminCode", "email", "role", "createdAt"]
+    },
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Public social profile, levels, VIP tier, and community affiliation (no PII).",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "addaCode": { "type": "string" },
+        "username": { "type": "string" },
+        "bio": { "type": "string" },
+        "age": { "type": "integer" },
+        "gender": { "type": "string", "enum": ["MALE", "FEMALE", "OTHER"] },
+        "avatarUrl": { "type": "string" },
+        "avatarPreset": { "type": "string" },
+        "level": { "type": "integer" },
+        "xp": { "type": "integer" },
+        "giftSendLevel": { "type": "integer" },
+        "giftReceiveLevel": { "type": "integer" },
+        "vipTier": { "type": "string", "enum": ["NONE", "VIP", "SVIP"] },
+        "frameStyle": { "type": "string" },
+        "nameColorHex": { "type": "string" },
+        "familyId": { "type": "string" },
+        "agencyId": { "type": "string" },
+        "hostStatus": { "type": "string", "enum": ["NONE", "PENDING", "APPROVED"] },
+        "verified": { "type": "boolean" },
+        "banned": { "type": "boolean" },
+        "online": { "type": "boolean" },
+        "followersCount": { "type": "integer" },
+        "followingCount": { "type": "integer" },
+        "friendsCount": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "addaCode", "username", "level", "xp", "vipTier", "verified", "banned", "online", "createdAt", "updatedAt"]
+    },
+    "UserPrivateAccount": {
+      "title": "UserPrivateAccount",
+      "description": "Owner-only PII and security/language preferences.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "preferredLang": { "type": "string", "enum": ["hi", "en"] },
+        "securityPinSet": { "type": "boolean" },
+        "twoFactorEnabled": { "type": "boolean" },
+        "privacyDiscoverable": { "type": "boolean" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "preferredLang", "updatedAt"]
+    },
+    "UserNotification": {
+      "title": "UserNotification",
+      "description": "In-app notification entry for a user.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "type": { "type": "string" },
+        "title": { "type": "string" },
+        "body": { "type": "string" },
+        "read": { "type": "boolean" },
+        "targetId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "type", "title", "body", "read", "createdAt"]
+    },
+    "UserMission": {
+      "title": "UserMission",
+      "description": "Daily and weekly missions plus daily login reward status.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "missionKey": { "type": "string" },
+        "title": { "type": "string" },
+        "progress": { "type": "integer" },
+        "target": { "type": "integer" },
+        "rewardCoins": { "type": "integer" },
+        "rewardXp": { "type": "integer" },
+        "completed": { "type": "boolean" },
+        "claimed": { "type": "boolean" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "missionKey", "title", "progress", "target", "rewardCoins", "rewardXp", "completed", "claimed", "updatedAt"]
+    },
+    "Wallet": {
+      "title": "Wallet",
+      "description": "Server-validated user wallet for Coins and Diamonds.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "coins": { "type": "integer" },
+        "diamonds": { "type": "integer" },
+        "totalSpentCoins": { "type": "integer" },
+        "totalEarnedDiamonds": { "type": "integer" },
+        "totalRechargedInr": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "coins", "diamonds", "totalSpentCoins", "totalEarnedDiamonds", "totalRechargedInr", "createdAt", "updatedAt"]
+    },
+    "WalletTransaction": {
+      "title": "WalletTransaction",
+      "description": "Immutable gift, reward, and recharge transaction ledger.",
+      "type": "object",
+      "properties": {
+        "senderId": { "type": "string" },
+        "senderName": { "type": "string" },
+        "receiverId": { "type": "string" },
+        "receiverName": { "type": "string" },
+        "type": { "type": "string", "enum": ["GIFT_SEND", "RECHARGE_CREDIT", "MISSION_REWARD", "VIP_PURCHASE", "ADMIN_ADJUST"] },
+        "amountCoins": { "type": "integer" },
+        "amountDiamonds": { "type": "integer" },
+        "giftId": { "type": "string" },
+        "giftName": { "type": "string" },
+        "quantity": { "type": "integer" },
+        "contextId": { "type": "string" },
+        "note": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["senderId", "receiverId", "type", "amountCoins", "amountDiamonds", "quantity", "createdAt"]
+    },
+    "RechargeOrder": {
+      "title": "RechargeOrder",
+      "description": "Indian Rupee UPI/payment gateway recharge order awaiting verified backend confirmation.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "packageId": { "type": "string" },
+        "packageLabel": { "type": "string" },
+        "amountInr": { "type": "integer" },
+        "coinsAmount": { "type": "integer" },
+        "paymentMethod": { "type": "string", "enum": ["UPI", "RAZORPAY", "GOOGLE_PLAY"] },
+        "utrReference": { "type": "string" },
+        "status": { "type": "string", "enum": ["PENDING", "VERIFIED", "REJECTED", "REFUNDED"] },
+        "verifiedBy": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "packageId", "amountInr", "coinsAmount", "paymentMethod", "utrReference", "status", "createdAt", "updatedAt"]
+    },
+    "GiftItem": {
+      "title": "GiftItem",
+      "description": "Admin-controlled animated gift item catalog.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "nameHi": { "type": "string" },
+        "category": { "type": "string", "enum": ["LOVE", "COUPLE", "ROYAL", "LUXURY", "FESTIVAL", "PREMIUM", "VIP", "SPECIAL"] },
+        "priceCoins": { "type": "integer" },
+        "diamondValue": { "type": "integer" },
+        "animationType": { "type": "string", "enum": ["FLOAT_2D", "ORBIT_3D", "FULLSCREEN_ROYAL"] },
+        "iconKey": { "type": "string" },
+        "active": { "type": "boolean" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "nameHi", "category", "priceCoins", "diamondValue", "animationType", "iconKey", "active", "updatedAt"]
+    },
+    "VoiceRoom": {
+      "title": "VoiceRoom",
+      "description": "Live multi-seat voice room.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "topic": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "ownerName": { "type": "string" },
+        "roomType": { "type": "string", "enum": ["PUBLIC", "PRIVATE", "PASSWORD"] },
+        "roomPin": { "type": "string" },
+        "seatCount": { "type": "integer" },
+        "themeId": { "type": "string" },
+        "announcement": { "type": "string" },
+        "level": { "type": "integer" },
+        "xp": { "type": "integer" },
+        "onlineCount": { "type": "integer" },
+        "totalGiftCoins": { "type": "integer" },
+        "pkActive": { "type": "boolean" },
+        "moderatorUids": { "type": "array" },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "ownerId", "ownerName", "roomType", "seatCount", "themeId", "level", "xp", "onlineCount", "totalGiftCoins", "pkActive", "moderatorUids", "active", "createdAt", "updatedAt"]
+    },
+    "RoomSeat": {
+      "title": "RoomSeat",
+      "description": "Microphone seat inside a voice room or ADDA group.",
+      "type": "object",
+      "properties": {
+        "roomId": { "type": "string" },
+        "addaId": { "type": "string" },
+        "seatIndex": { "type": "integer" },
+        "occupantId": { "type": "string" },
+        "occupantName": { "type": "string" },
+        "occupantVip": { "type": "string" },
+        "muted": { "type": "boolean" },
+        "locked": { "type": "boolean" },
+        "speaking": { "type": "boolean" },
+        "speakingLevel": { "type": "integer" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["seatIndex", "occupantId", "occupantName", "muted", "locked", "speaking", "speakingLevel", "updatedAt"]
+    },
+    "RoomMessage": {
+      "title": "RoomMessage",
+      "description": "Live chat or gift feed message inside a room, ADDA, or family.",
+      "type": "object",
+      "properties": {
+        "roomId": { "type": "string" },
+        "addaId": { "type": "string" },
+        "familyId": { "type": "string" },
+        "senderId": { "type": "string" },
+        "senderName": { "type": "string" },
+        "senderVip": { "type": "string" },
+        "msgType": { "type": "string", "enum": ["CHAT", "GIFT", "SYSTEM"] },
+        "text": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["senderId", "senderName", "msgType", "text", "createdAt"]
+    },
+    "RoomMember": {
+      "title": "RoomMember",
+      "description": "Member entry inside a voice room, ADDA group, or family.",
+      "type": "object",
+      "properties": {
+        "roomId": { "type": "string" },
+        "addaId": { "type": "string" },
+        "familyId": { "type": "string" },
+        "userId": { "type": "string" },
+        "username": { "type": "string" },
+        "vipTier": { "type": "string" },
+        "role": { "type": "string" },
+        "muted": { "type": "boolean" },
+        "joinedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "username", "role", "joinedAt"]
+    },
+    "AddaGroup": {
+      "title": "AddaGroup",
+      "description": "User-created ADDA community group with dedicated voice lounge and roles.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "rules": { "type": "string" },
+        "avatarKey": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "ownerName": { "type": "string" },
+        "publicAdda": { "type": "boolean" },
+        "themeId": { "type": "string" },
+        "level": { "type": "integer" },
+        "xp": { "type": "integer" },
+        "memberCount": { "type": "integer" },
+        "seatCount": { "type": "integer" },
+        "coAdminUids": { "type": "array" },
+        "moderatorUids": { "type": "array" },
+        "mutedUids": { "type": "array" },
+        "bannedUids": { "type": "array" },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "ownerId", "ownerName", "publicAdda", "themeId", "level", "xp", "memberCount", "seatCount", "coAdminUids", "moderatorUids", "mutedUids", "bannedUids", "active", "createdAt", "updatedAt"]
+    },
+    "PkBattle": {
+      "title": "PkBattle",
+      "description": "Live Red vs Blue PK Battle with gift-based scoring.",
+      "type": "object",
+      "properties": {
+        "roomId": { "type": "string" },
+        "redTeamName": { "type": "string" },
+        "blueTeamName": { "type": "string" },
+        "redCaptainId": { "type": "string" },
+        "blueCaptainId": { "type": "string" },
+        "redScore": { "type": "integer" },
+        "blueScore": { "type": "integer" },
+        "status": { "type": "string", "enum": ["ACTIVE", "FINISHED"] },
+        "winnerTeam": { "type": "string", "enum": ["NONE", "RED", "BLUE", "DRAW"] },
+        "durationSec": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["roomId", "redTeamName", "blueTeamName", "redCaptainId", "blueCaptainId", "redScore", "blueScore", "status", "winnerTeam", "durationSec", "createdAt", "updatedAt"]
+    },
+    "Family": {
+      "title": "Family",
+      "description": "ADDA Family clan with shared chat, levels, and rankings.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "motto": { "type": "string" },
+        "crestKey": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "ownerName": { "type": "string" },
+        "adminUids": { "type": "array" },
+        "memberCount": { "type": "integer" },
+        "level": { "type": "integer" },
+        "xp": { "type": "integer" },
+        "totalGiftPoints": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "ownerId", "ownerName", "adminUids", "memberCount", "level", "xp", "totalGiftPoints", "createdAt", "updatedAt"]
+    },
+    "Agency": {
+      "title": "Agency",
+      "description": "Creator agency managing registered hosts and diamond commissions.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "ownerName": { "type": "string" },
+        "managerUids": { "type": "array" },
+        "hostCount": { "type": "integer" },
+        "totalDiamonds": { "type": "integer" },
+        "commissionPercent": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "ownerId", "ownerName", "managerUids", "hostCount", "totalDiamonds", "commissionPercent", "createdAt", "updatedAt"]
+    },
+    "AgencyHost": {
+      "title": "AgencyHost",
+      "description": "Registered host inside an agency.",
+      "type": "object",
+      "properties": {
+        "agencyId": { "type": "string" },
+        "userId": { "type": "string" },
+        "username": { "type": "string" },
+        "status": { "type": "string", "enum": ["PENDING", "APPROVED", "REJECTED"] },
+        "earnedDiamonds": { "type": "integer" },
+        "liveMinutes": { "type": "integer" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["agencyId", "userId", "username", "status", "earnedDiamonds", "liveMinutes", "updatedAt"]
+    },
+    "FriendRequest": {
+      "title": "FriendRequest",
+      "description": "Pending or resolved friend request between two users.",
+      "type": "object",
+      "properties": {
+        "fromUid": { "type": "string" },
+        "fromName": { "type": "string" },
+        "toUid": { "type": "string" },
+        "toName": { "type": "string" },
+        "status": { "type": "string", "enum": ["PENDING", "ACCEPTED", "REJECTED"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["fromUid", "fromName", "toUid", "toName", "status", "createdAt", "updatedAt"]
+    },
+    "Friendship": {
+      "title": "Friendship",
+      "description": "Confirmed friend relationship.",
+      "type": "object",
+      "properties": {
+        "userIds": { "type": "array" },
+        "userNames": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userIds", "userNames", "createdAt"]
+    },
+    "PrivateChat": {
+      "title": "PrivateChat",
+      "description": "1-on-1 private conversation thread.",
+      "type": "object",
+      "properties": {
+        "participantIds": { "type": "array" },
+        "participantNames": { "type": "array" },
+        "lastMessage": { "type": "string" },
+        "lastSenderId": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["participantIds", "participantNames", "lastMessage", "lastSenderId", "updatedAt"]
+    },
+    "PrivateMessage": {
+      "title": "PrivateMessage",
+      "description": "Text or voice note inside a private chat.",
+      "type": "object",
+      "properties": {
+        "chatId": { "type": "string" },
+        "participantIds": { "type": "array" },
+        "senderId": { "type": "string" },
+        "senderName": { "type": "string" },
+        "text": { "type": "string" },
+        "msgType": { "type": "string", "enum": ["TEXT", "VOICE"] },
+        "durationSec": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["chatId", "participantIds", "senderId", "senderName", "text", "msgType", "durationSec", "createdAt"]
+    },
+    "AppEvent": {
+      "title": "AppEvent",
+      "description": "Festival, couple, gift challenge, or PK event.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "titleHi": { "type": "string" },
+        "description": { "type": "string" },
+        "eventType": { "type": "string" },
+        "rewardCoins": { "type": "integer" },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "titleHi", "description", "eventType", "rewardCoins", "active", "createdAt", "updatedAt"]
+    },
+    "Announcement": {
+      "title": "Announcement",
+      "description": "System announcement published by AKKI_ADMIN.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "body": { "type": "string" },
+        "createdBy": { "type": "string" },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "body", "createdBy", "active", "createdAt"]
+    },
+    "Report": {
+      "title": "Report",
+      "description": "User or room moderation report.",
+      "type": "object",
+      "properties": {
+        "reporterId": { "type": "string" },
+        "targetId": { "type": "string" },
+        "targetType": { "type": "string", "enum": ["USER", "ROOM", "ADDA"] },
+        "reason": { "type": "string" },
+        "status": { "type": "string", "enum": ["OPEN", "RESOLVED", "DISMISSED"] },
+        "adminNote": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["reporterId", "targetId", "targetType", "reason", "status", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/admins/{adminUid}": {
+      "schema": { "$ref": "#/entities/AdminRegistry" },
+      "description": "Server-verified administrator accounts."
+    },
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Public user social profiles and game progression."
+    },
+    "/users/{userId}/private/{docId}": {
+      "schema": { "$ref": "#/entities/UserPrivateAccount" },
+      "description": "Owner-only PII and privacy settings."
+    },
+    "/users/{userId}/notifications/{notifId}": {
+      "schema": { "$ref": "#/entities/UserNotification" },
+      "description": "User notification inbox."
+    },
+    "/users/{userId}/missions/{missionId}": {
+      "schema": { "$ref": "#/entities/UserMission" },
+      "description": "User daily/weekly missions and reward claims."
+    },
+    "/wallets/{userId}": {
+      "schema": { "$ref": "#/entities/Wallet" },
+      "description": "Protected coin and diamond balances."
+    },
+    "/transactions/{txId}": {
+      "schema": { "$ref": "#/entities/WalletTransaction" },
+      "description": "Immutable transaction history."
+    },
+    "/recharge_orders/{orderId}": {
+      "schema": { "$ref": "#/entities/RechargeOrder" },
+      "description": "INR coin recharge orders awaiting backend verification."
+    },
+    "/gifts/{giftId}": {
+      "schema": { "$ref": "#/entities/GiftItem" },
+      "description": "Animated gift catalog managed by admin."
+    },
+    "/voice_rooms/{roomId}": {
+      "schema": { "$ref": "#/entities/VoiceRoom" },
+      "description": "Live multi-seat voice rooms."
+    },
+    "/voice_rooms/{roomId}/seats/{seatId}": {
+      "schema": { "$ref": "#/entities/RoomSeat" },
+      "description": "Microphone seats in a voice room."
+    },
+    "/voice_rooms/{roomId}/messages/{msgId}": {
+      "schema": { "$ref": "#/entities/RoomMessage" },
+      "description": "Live chat and gift feed in a voice room."
+    },
+    "/voice_rooms/{roomId}/members/{memberId}": {
+      "schema": { "$ref": "#/entities/RoomMember" },
+      "description": "Online members inside a voice room."
+    },
+    "/adda_groups/{addaId}": {
+      "schema": { "$ref": "#/entities/AddaGroup" },
+      "description": "Special ADDA community groups."
+    },
+    "/adda_groups/{addaId}/members/{memberId}": {
+      "schema": { "$ref": "#/entities/RoomMember" },
+      "description": "Members and roles in an ADDA group."
+    },
+    "/adda_groups/{addaId}/seats/{seatId}": {
+      "schema": { "$ref": "#/entities/RoomSeat" },
+      "description": "Live voice seats in an ADDA group."
+    },
+    "/adda_groups/{addaId}/messages/{msgId}": {
+      "schema": { "$ref": "#/entities/RoomMessage" },
+      "description": "Live chat and gift feed in an ADDA group."
+    },
+    "/pk_battles/{battleId}": {
+      "schema": { "$ref": "#/entities/PkBattle" },
+      "description": "Live Red vs Blue PK battles."
+    },
+    "/families/{familyId}": {
+      "schema": { "$ref": "#/entities/Family" },
+      "description": "ADDA Families."
+    },
+    "/families/{familyId}/members/{memberId}": {
+      "schema": { "$ref": "#/entities/RoomMember" },
+      "description": "Members of a family."
+    },
+    "/families/{familyId}/messages/{msgId}": {
+      "schema": { "$ref": "#/entities/RoomMessage" },
+      "description": "Family chat messages."
+    },
+    "/agencies/{agencyId}": {
+      "schema": { "$ref": "#/entities/Agency" },
+      "description": "ADDA Host Agencies."
+    },
+    "/agencies/{agencyId}/hosts/{hostId}": {
+      "schema": { "$ref": "#/entities/AgencyHost" },
+      "description": "Hosts registered in an agency."
+    },
+    "/friend_requests/{reqId}": {
+      "schema": { "$ref": "#/entities/FriendRequest" },
+      "description": "Friend requests."
+    },
+    "/friendships/{pairId}": {
+      "schema": { "$ref": "#/entities/Friendship" },
+      "description": "Confirmed friendships."
+    },
+    "/chats/{chatId}": {
+      "schema": { "$ref": "#/entities/PrivateChat" },
+      "description": "Private 1-to-1 chat threads."
+    },
+    "/chats/{chatId}/messages/{msgId}": {
+      "schema": { "$ref": "#/entities/PrivateMessage" },
+      "description": "Private chat text and voice messages."
+    },
+    "/events/{eventId}": {
+      "schema": { "$ref": "#/entities/AppEvent" },
+      "description": "Platform festivals and challenge events."
+    },
+    "/announcements/{annId}": {
+      "schema": { "$ref": "#/entities/Announcement" },
+      "description": "Admin announcements."
+    },
+    "/reports/{reportId}": {
+      "schema": { "$ref": "#/entities/Report" },
+      "description": "User and room moderation reports."
+    }
+  }
+}

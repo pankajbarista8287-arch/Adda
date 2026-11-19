@@ -1,0 +1,829 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global safety net: deny everything by default
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Core Helper Functions ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function isBootstrappedAdminEmail() {
+      return isSignedIn() &&
+        'email' in request.auth.token &&
+        request.auth.token.email == 'pankajbarista8287@gmail.com' &&
+        'email_verified' in request.auth.token &&
+        request.auth.token.email_verified == true;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        isBootstrappedAdminEmail() ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function isValidTimestamp(ts) {
+      return ts is timestamp && ts <= request.time;
+    }
+
+    function isStringBounded(val, minLen, maxLen) {
+      return val is string && val.size() >= minLen && val.size() <= maxLen;
+    }
+
+    // --- Validation Helpers ---
+
+    function isValidAdminRegistry(data) {
+      return isValidId(data.adminUid) &&
+        data.adminCode == 'AKKI_ADMIN' &&
+        isStringBounded(data.email, 3, 150) &&
+        data.role in ['SUPER_ADMIN', 'MODERATOR'] &&
+        isValidTimestamp(data.createdAt);
+    }
+
+    function isValidUserProfile(data) {
+      return !('id' in data) &&
+        isValidId(data.userId) &&
+        isStringBounded(data.addaCode, 4, 16) &&
+        isStringBounded(data.username, 2, 30) &&
+        (!('bio' in data) || isStringBounded(data.bio, 0, 200)) &&
+        (!('age' in data) || (data.age is int && data.age >= 13 && data.age <= 100)) &&
+        (!('gender' in data) || data.gender in ['MALE', 'FEMALE', 'OTHER']) &&
+        (!('avatarUrl' in data) || isStringBounded(data.avatarUrl, 0, 500)) &&
+        (!('avatarPreset' in data) || isStringBounded(data.avatarPreset, 0, 50)) &&
+        data.level is int && data.level >= 1 && data.level <= 100 &&
+        data.xp is int && data.xp >= 0 &&
+        (!('giftSendLevel' in data) || (data.giftSendLevel is int && data.giftSendLevel >= 1 && data.giftSendLevel <= 100)) &&
+        (!('giftReceiveLevel' in data) || (data.giftReceiveLevel is int && data.giftReceiveLevel >= 1 && data.giftReceiveLevel <= 100)) &&
+        data.vipTier in ['NONE', 'VIP', 'SVIP'] &&
+        (!('frameStyle' in data) || isStringBounded(data.frameStyle, 1, 40)) &&
+        (!('nameColorHex' in data) || isStringBounded(data.nameColorHex, 4, 12)) &&
+        (!('familyId' in data) || isStringBounded(data.familyId, 0, 128)) &&
+        (!('agencyId' in data) || isStringBounded(data.agencyId, 0, 128)) &&
+        (!('hostStatus' in data) || data.hostStatus in ['NONE', 'PENDING', 'APPROVED']) &&
+        data.verified is bool &&
+        data.banned is bool &&
+        data.online is bool &&
+        (!('followersCount' in data) || (data.followersCount is int && data.followersCount >= 0)) &&
+        (!('followingCount' in data) || (data.followingCount is int && data.followingCount >= 0)) &&
+        (!('friendsCount' in data) || (data.friendsCount is int && data.friendsCount >= 0)) &&
+        isValidTimestamp(data.createdAt) &&
+        isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidPrivateAccount(data) {
+      return isValidId(data.userId) &&
+        (!('email' in data) || isStringBounded(data.email, 0, 150)) &&
+        (!('phone' in data) || isStringBounded(data.phone, 0, 20)) &&
+        data.preferredLang in ['hi', 'en'] &&
+        (!('securityPinSet' in data) || data.securityPinSet is bool) &&
+        (!('twoFactorEnabled' in data) || data.twoFactorEnabled is bool) &&
+        (!('privacyDiscoverable' in data) || data.privacyDiscoverable is bool) &&
+        isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidNotification(data) {
+      return isValidId(data.userId) &&
+        isStringBounded(data.type, 2, 40) &&
+        isStringBounded(data.title, 1, 100) &&
+        isStringBounded(data.body, 1, 300) &&
+        data.read is bool &&
+        (!('targetId' in data) || isStringBounded(data.targetId, 0, 128)) &&
+        isValidTimestamp(data.createdAt);
+    }
+
+    function isValidMission(data) {
+      return isValidId(data.userId) &&
+        isStringBounded(data.missionKey, 2, 40) &&
+        isStringBounded(data.title, 1, 100) &&
+        data.progress is int && data.progress >= 0 &&
+        data.target is int && data.target >= 1 &&
+        data.rewardCoins is int && data.rewardCoins >= 0 && data.rewardCoins <= 1000 &&
+        data.rewardXp is int && data.rewardXp >= 0 && data.rewardXp <= 1000 &&
+        data.completed is bool &&
+        data.claimed is bool &&
+        isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidWallet(data) {
+      return isValidId(data.userId) &&
+        data.coins is int && data.coins >= 0 &&
+        data.diamonds is int && data.diamonds >= 0 &&
+        data.totalSpentCoins is int && data.totalSpentCoins >= 0 &&
+        data.totalEarnedDiamonds is int && data.totalEarnedDiamonds >= 0 &&
+        data.totalRechargedInr is int && data.totalRechargedInr >= 0 &&
+        isValidTimestamp(data.createdAt) &&
+        isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidTransaction(data) {
+      return isValidId(data.senderId) &&
+        isValidId(data.receiverId) &&
+        (!('senderName' in data) || isStringBounded(data.senderName, 0, 60)) &&
+        (!('receiverName' in data) || isStringBounded(data.receiverName, 0, 60)) &&
+        data.type in ['GIFT_SEND', 'RECHARGE_CREDIT', 'MISSION_REWARD', 'VIP_PURCHASE', 'ADMIN_ADJUST'] &&
+        data.amountCoins is int && data.amountCoins >= 0 &&
+        data.amountDiamonds is int && data.amountDiamonds >= 0 &&
+        (!('giftId' in data) || isStringBounded(data.giftId, 0, 128)) &&
+        (!('giftName' in data) || isStringBounded(data.giftName, 0, 60)) &&
+        data.quantity is int && data.quantity >= 1 && data.quantity <= 999 &&
+        (!('contextId' in data) || isStringBounded(data.contextId, 0, 128)) &&
+        (!('note' in data) || isStringBounded(data.note, 0, 200)) &&
+        isValidTimestamp(data.createdAt);
+    }
+
+    function isValidRechargeOrder(data) {
+      return isValidId(data.userId) &&
+        (!('userName' in data) || isStringBounded(data.userName, 0, 60)) &&
+        isStringBounded(data.packageId, 2, 40) &&
+        (!('packageLabel' in data) || isStringBounded(data.packageLabel, 1, 60)) &&
+        data.amountInr is int && data.amountInr >= 10 && data.amountInr <= 500000 &&
+        data.coinsAmount is int && data.coinsAmount >= 10 && data.coinsAmount <= 50000000 &&
+        data.paymentMethod in ['UPI', 'RAZORPAY', 'GOOGLE_PLAY'] &&
+        isStringBounded(data.utrReference, 4, 64) &&
+        data.status in ['PENDING', 'VERIFIED', 'REJECTED', 'REFUNDED'] &&
+        (!('verifiedBy' in data) || isStringBounded(data.verifiedBy, 0, 64)) &&
+        isValidTimestamp(data.createdAt) &&
+        isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidGiftItem(data) {
+      return isStringBounded(data.name, 1, 50) &&
+        isStringBounded(data.nameHi, 1, 60) &&
+        data.category in ['LOVE', 'COUPLE', 'ROYAL', 'LUXURY', 'FESTIVAL', 'PREMIUM', 'VIP', 'SPECIAL'] &&
+        data.priceCoins is int && data.priceCoins >= 1 && data.priceCoins <= 1000000 &&
+        data.diamondValue is int && data.diamondValue >= 1 && data.diamondValue <= 1000000 &&
+        data.animationType in ['FLOAT_2D', 'ORBIT_3D', 'FULLSCREEN_ROYAL'] &&
+        isStringBounded(data.iconKey, 1, 40) &&
+        data.active is bool &&
+        isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidVoiceRoom(data) {
+      return isStringBounded(data.title, 2, 60) &&
+        (!('topic' in data) || isStringBounded(data.topic, 0, 120)) &&
+        isValidId(data.ownerId) &&
+        isStringBounded(data.ownerName, 1, 40) &&
+        data.roomType in ['PUBLIC', 'PRIVATE', 'PASSWORD'] &&
+        (!('roomPin' in data) || isStringBounded(data.roomPin, 0, 12)) &&
+        data.seatCount is int && data.seatCount >= 8 && data.seatCount <= 16 &&
+        isStringBounded(data.themeId, 1, 40) &&
+        (!('announcement' in data) || isStringBounded(data.announcement, 0, 250)) &&
+        data.level is int && data.level >= 1 && data.level <= 100 &&
+        data.xp is int && data.xp >= 0 &&
+        data.onlineCount is int && data.onlineCount >= 0 &&
+        data.totalGiftCoins is int && data.totalGiftCoins >= 0 &&
+        data.pkActive is bool &&
+        data.moderatorUids is list && data.moderatorUids.size() <= 20 &&
+        (data.moderatorUids.size() == 0 || data.moderatorUids[0] is string) &&
+        data.active is bool &&
+        isValidTimestamp(data.createdAt) &&
+        isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidRoomSeat(data) {
+      return (!('roomId' in data) || isValidId(data.roomId)) &&
+        (!('addaId' in data) || isValidId(data.addaId)) &&
+        data.seatIndex is int && data.seatIndex >= 0 && data.seatIndex <= 15 &&
+        isStringBounded(data.occupantId, 0, 128) &&
+        isStringBounded(data.occupantName, 0, 40) &&
+        (!('occupantVip' in data) || isStringBounded(data.occupantVip, 0, 16)) &&
+        data.muted is bool &&
+        data.locked is bool &&
+        data.speaking is bool &&
+        data.speakingLevel is int && data.speakingLevel >= 0 && data.speakingLevel <= 100 &&
+        isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidRoomMessage(data) {
+      return (!('roomId' in data) || isValidId(data.roomId)) &&
+        (!('addaId' in data) || isValidId(data.addaId)) &&
+        (!('familyId' in data) || isValidId(data.familyId)) &&
+        isValidId(data.senderId) &&
+        isStringBounded(data.senderName, 1, 40) &&
+        (!('senderVip' in data) || isStringBounded(data.senderVip, 0, 16)) &&
+        data.msgType in ['CHAT', 'GIFT', 'SYSTEM'] &&
+        isStringBounded(data.text, 1, 400) &&
+        isValidTimestamp(data.createdAt);
+    }
+
+    function isValidRoomMember(data) {
+      return (!('roomId' in data) || isValidId(data.roomId)) &&
+        (!('addaId' in data) || isValidId(data.addaId)) &&
+        (!('familyId' in data) || isValidId(data.familyId)) &&
+        isValidId(data.userId) &&
+        isStringBounded(data.username, 1, 40) &&
+        (!('vipTier' in data) || isStringBounded(data.vipTier, 0, 16)) &&
+        isStringBounded(data.role, 1, 20) &&
+        (!('muted' in data) || data.muted is bool) &&
+        isValidTimestamp(data.joinedAt);
+    }
+
+    function isValidAddaGroup(data) {
+      return isStringBounded(data.name, 2, 60) &&
+        (!('description' in data) || isStringBounded(data.description, 0, 250)) &&
+        (!('rules' in data) || isStringBounded(data.rules, 0, 400)) &&
+        (!('avatarKey' in data) || isStringBounded(data.avatarKey, 0, 60)) &&
+        isValidId(data.ownerId) &&
+        isStringBounded(data.ownerName, 1, 40) &&
+        data.publicAdda is bool &&
+        isStringBounded(data.themeId, 1, 40) &&
+        data.level is int && data.level >= 1 && data.level <= 100 &&
+        data.xp is int && data.xp >= 0 &&
+        data.memberCount is int && data.memberCount >= 1 &&
+        data.seatCount is int && data.seatCount >= 8 && data.seatCount <= 16 &&
+        data.coAdminUids is list && data.coAdminUids.size() <= 10 &&
+        (data.coAdminUids.size() == 0 || data.coAdminUids[0] is string) &&
+        data.moderatorUids is list && data.moderatorUids.size() <= 20 &&
+        (data.moderatorUids.size() == 0 || data.moderatorUids[0] is string) &&
+        data.mutedUids is list && data.mutedUids.size() <= 50 &&
+        (data.mutedUids.size() == 0 || data.mutedUids[0] is string) &&
+        data.bannedUids is list && data.bannedUids.size() <= 50 &&
+        (data.bannedUids.size() == 0 || data.bannedUids[0] is string) &&
+        data.active is bool &&
+        isValidTimestamp(data.createdAt) &&
+        isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidPkBattle(data) {
+      return isValidId(data.roomId) &&
+        isStringBounded(data.redTeamName, 2, 40) &&
+        isStringBounded(data.blueTeamName, 2, 40) &&
+        isValidId(data.redCaptainId) &&
+        isValidId(data.blueCaptainId) &&
+        data.redScore is int && data.redScore >= 0 &&
+        data.blueScore is int && data.blueScore >= 0 &&
+        data.status in ['ACTIVE', 'FINISHED'] &&
+        data.winnerTeam in ['NONE', 'RED', 'BLUE', 'DRAW'] &&
+        data.durationSec is int && data.durationSec >= 60 && data.durationSec <= 1800 &&
+        isValidTimestamp(data.createdAt) &&
+        isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidFamily(data) {
+      return isStringBounded(data.name, 2, 50) &&
+        (!('motto' in data) || isStringBounded(data.motto, 0, 150)) &&
+        (!('crestKey' in data) || isStringBounded(data.crestKey, 0, 40)) &&
+        isValidId(data.ownerId) &&
+        isStringBounded(data.ownerName, 1, 40) &&
+        data.adminUids is list && data.adminUids.size() <= 10 &&
+        (data.adminUids.size() == 0 || data.adminUids[0] is string) &&
+        data.memberCount is int && data.memberCount >= 1 &&
+        data.level is int && data.level >= 1 && data.level <= 100 &&
+        data.xp is int && data.xp >= 0 &&
+        data.totalGiftPoints is int && data.totalGiftPoints >= 0 &&
+        isValidTimestamp(data.createdAt) &&
+        isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidAgency(data) {
+      return isStringBounded(data.name, 2, 50) &&
+        (!('description' in data) || isStringBounded(data.description, 0, 200)) &&
+        isValidId(data.ownerId) &&
+        isStringBounded(data.ownerName, 1, 40) &&
+        data.managerUids is list && data.managerUids.size() <= 10 &&
+        (data.managerUids.size() == 0 || data.managerUids[0] is string) &&
+        data.hostCount is int && data.hostCount >= 0 &&
+        data.totalDiamonds is int && data.totalDiamonds >= 0 &&
+        data.commissionPercent is int && data.commissionPercent >= 5 && data.commissionPercent <= 50 &&
+        isValidTimestamp(data.createdAt) &&
+        isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidAgencyHost(data) {
+      return isValidId(data.agencyId) &&
+        isValidId(data.userId) &&
+        isStringBounded(data.username, 1, 40) &&
+        data.status in ['PENDING', 'APPROVED', 'REJECTED'] &&
+        data.earnedDiamonds is int && data.earnedDiamonds >= 0 &&
+        data.liveMinutes is int && data.liveMinutes >= 0 &&
+        isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidFriendRequest(data) {
+      return isValidId(data.fromUid) &&
+        isStringBounded(data.fromName, 1, 40) &&
+        isValidId(data.toUid) &&
+        isStringBounded(data.toName, 1, 40) &&
+        data.fromUid != data.toUid &&
+        data.status in ['PENDING', 'ACCEPTED', 'REJECTED'] &&
+        isValidTimestamp(data.createdAt) &&
+        isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidFriendship(data) {
+      return data.userIds is list && data.userIds.size() == 2 &&
+        data.userIds[0] is string && data.userIds[1] is string &&
+        data.userNames is list && data.userNames.size() == 2 &&
+        data.userNames[0] is string && data.userNames[1] is string &&
+        isValidTimestamp(data.createdAt);
+    }
+
+    function isValidPrivateChat(data) {
+      return data.participantIds is list && data.participantIds.size() == 2 &&
+        data.participantIds[0] is string && data.participantIds[1] is string &&
+        data.participantNames is list && data.participantNames.size() == 2 &&
+        data.participantNames[0] is string && data.participantNames[1] is string &&
+        isStringBounded(data.lastMessage, 0, 300) &&
+        isValidId(data.lastSenderId) &&
+        isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidPrivateMessage(data) {
+      return isValidId(data.chatId) &&
+        data.participantIds is list && data.participantIds.size() == 2 &&
+        data.participantIds[0] is string && data.participantIds[1] is string &&
+        isValidId(data.senderId) &&
+        isStringBounded(data.senderName, 1, 40) &&
+        isStringBounded(data.text, 1, 400) &&
+        data.msgType in ['TEXT', 'VOICE'] &&
+        data.durationSec is int && data.durationSec >= 0 && data.durationSec <= 600 &&
+        isValidTimestamp(data.createdAt);
+    }
+
+    function isValidAppEvent(data) {
+      return isStringBounded(data.title, 2, 80) &&
+        isStringBounded(data.titleHi, 2, 80) &&
+        isStringBounded(data.description, 2, 250) &&
+        isStringBounded(data.eventType, 2, 30) &&
+        data.rewardCoins is int && data.rewardCoins >= 0 &&
+        data.active is bool &&
+        isValidTimestamp(data.createdAt) &&
+        isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidAnnouncement(data) {
+      return isStringBounded(data.title, 2, 80) &&
+        isStringBounded(data.body, 2, 400) &&
+        isStringBounded(data.createdBy, 1, 64) &&
+        data.active is bool &&
+        isValidTimestamp(data.createdAt);
+    }
+
+    function isValidReport(data) {
+      return isValidId(data.reporterId) &&
+        isValidId(data.targetId) &&
+        data.targetType in ['USER', 'ROOM', 'ADDA'] &&
+        isStringBounded(data.reason, 3, 300) &&
+        data.status in ['OPEN', 'RESOLVED', 'DISMISSED'] &&
+        (!('adminNote' in data) || isStringBounded(data.adminNote, 0, 300)) &&
+        isValidTimestamp(data.createdAt) &&
+        isValidTimestamp(data.updatedAt);
+    }
+
+    // --- Collection Rules ---
+
+    // 1. Admins registry (AKKI_ADMIN verified on server)
+    match /admins/{adminUid} {
+      allow get: if isValidId(adminUid) && (isOwner(adminUid) || isAdmin());
+      allow list: if isAdmin();
+      allow create, update: if isValidId(adminUid) && isBootstrappedAdminEmail() && isValidAdminRegistry(incoming());
+      allow delete: if isValidId(adminUid) && isBootstrappedAdminEmail();
+    }
+
+    // 2. Public User Profiles + Owner-Only PII/Notifications/Missions
+    match /users/{userId} {
+      allow get: if isValidId(userId) && isSignedIn();
+      allow list: if isSignedIn() && (existing().banned == false || isAdmin());
+      allow create: if isValidId(userId) &&
+        isOwner(userId) &&
+        incoming().userId == request.auth.uid &&
+        incoming().level == 1 &&
+        incoming().xp == 0 &&
+        incoming().vipTier == 'NONE' &&
+        incoming().verified == false &&
+        incoming().banned == false &&
+        incoming().keys().hasAll(['userId', 'addaCode', 'username', 'level', 'xp', 'vipTier', 'verified', 'banned', 'online', 'createdAt', 'updatedAt']) &&
+        isValidUserProfile(incoming());
+      allow update: if isValidId(userId) && isSignedIn() && isValidUserProfile(incoming()) && (
+        isAdmin() ||
+        (
+          isOwner(userId) &&
+          incoming().userId == existing().userId &&
+          incoming().addaCode == existing().addaCode &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().verified == existing().verified &&
+          incoming().banned == existing().banned &&
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'username', 'bio', 'age', 'gender', 'avatarUrl', 'avatarPreset',
+            'online', 'frameStyle', 'nameColorHex', 'familyId', 'agencyId', 'hostStatus',
+            'level', 'xp', 'giftSendLevel', 'vipTier', 'followersCount', 'followingCount', 'friendsCount', 'updatedAt'
+          ])
+        ) ||
+        (
+          // Gift receiver progression / social count update
+          incoming().userId == existing().userId &&
+          incoming().addaCode == existing().addaCode &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['giftReceiveLevel', 'followersCount', 'friendsCount', 'updatedAt'])
+        )
+      );
+      allow delete: if isValidId(userId) && isAdmin();
+
+      match /private/{docId} {
+        allow get, list: if isOwner(userId) || isAdmin();
+        allow create, update: if isValidId(docId) && isOwner(userId) &&
+          incoming().userId == userId &&
+          isValidPrivateAccount(incoming());
+        allow delete: if isOwner(userId) || isAdmin();
+      }
+
+      match /notifications/{notifId} {
+        allow get, list: if isOwner(userId) || isAdmin();
+        allow create: if isValidId(notifId) && isSignedIn() &&
+          incoming().userId == userId &&
+          isValidNotification(incoming());
+        allow update: if isValidId(notifId) && isOwner(userId) &&
+          isValidNotification(incoming()) &&
+          incoming().userId == existing().userId &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['read']);
+        allow delete: if isValidId(notifId) && (isOwner(userId) || isAdmin());
+      }
+
+      match /missions/{missionId} {
+        allow get, list: if isOwner(userId) || isAdmin();
+        allow create, update: if isValidId(missionId) && (isOwner(userId) || isAdmin()) &&
+          incoming().userId == userId &&
+          isValidMission(incoming());
+        allow delete: if isValidId(missionId) && isAdmin();
+      }
+    }
+
+    // 3. Wallets (Anti-fraud: users cannot arbitrarily inflate coins or diamonds)
+    match /wallets/{userId} {
+      allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isValidId(userId) &&
+        isOwner(userId) &&
+        incoming().userId == request.auth.uid &&
+        incoming().coins == 100 &&
+        incoming().diamonds == 0 &&
+        incoming().totalSpentCoins == 0 &&
+        incoming().totalEarnedDiamonds == 0 &&
+        incoming().totalRechargedInr == 0 &&
+        isValidWallet(incoming());
+      allow update: if isValidId(userId) && isSignedIn() && isValidWallet(incoming()) && (
+        isAdmin() ||
+        (
+          // Spend coins on gift/VIP (cannot increase coins, cannot alter diamonds or recharged INR)
+          isOwner(userId) &&
+          incoming().userId == existing().userId &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().coins <= existing().coins &&
+          incoming().diamonds == existing().diamonds &&
+          incoming().totalRechargedInr == existing().totalRechargedInr &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['coins', 'totalSpentCoins', 'updatedAt'])
+        ) ||
+        (
+          // Receive diamonds from another user's gift (cannot alter coins or spent coins)
+          incoming().userId == existing().userId &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().coins == existing().coins &&
+          incoming().totalSpentCoins == existing().totalSpentCoins &&
+          incoming().totalRechargedInr == existing().totalRechargedInr &&
+          incoming().diamonds > existing().diamonds &&
+          incoming().totalEarnedDiamonds > existing().totalEarnedDiamonds &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['diamonds', 'totalEarnedDiamonds', 'updatedAt'])
+        )
+      );
+      allow delete: if isValidId(userId) && isAdmin();
+    }
+
+    // 4. Immutable Transaction Ledger
+    match /transactions/{txId} {
+      allow get: if isValidId(txId) && isSignedIn() && (
+        existing().senderId == request.auth.uid ||
+        existing().receiverId == request.auth.uid ||
+        isAdmin()
+      );
+      allow list: if isSignedIn() && (
+        existing().senderId == request.auth.uid ||
+        existing().receiverId == request.auth.uid ||
+        isAdmin()
+      );
+      allow create: if isValidId(txId) && isSignedIn() && isValidTransaction(incoming()) && (
+        isAdmin() ||
+        (incoming().senderId == request.auth.uid && incoming().type in ['GIFT_SEND', 'VIP_PURCHASE'])
+      );
+      allow update, delete: if false;
+    }
+
+    // 5. Indian Rupee Recharge Orders (Pending until verified by backend/admin)
+    match /recharge_orders/{orderId} {
+      allow get: if isValidId(orderId) && (isOwner(existing().userId) || isAdmin());
+      allow list: if isSignedIn() && (existing().userId == request.auth.uid || isAdmin());
+      allow create: if isValidId(orderId) && isSignedIn() &&
+        incoming().userId == request.auth.uid &&
+        incoming().status == 'PENDING' &&
+        isValidRechargeOrder(incoming());
+      allow update: if isValidId(orderId) && isAdmin() && isValidRechargeOrder(incoming());
+      allow delete: if isValidId(orderId) && isAdmin();
+    }
+
+    // 6. Animated Gift Catalog (Admin-managed)
+    match /gifts/{giftId} {
+      allow get: if isValidId(giftId) && isSignedIn();
+      allow list: if isSignedIn() && (existing().active == true || isAdmin());
+      allow create, update: if isValidId(giftId) && isAdmin() && isValidGiftItem(incoming());
+      allow delete: if isValidId(giftId) && isAdmin();
+    }
+
+    // 7. Live Voice Rooms & Subcollections
+    match /voice_rooms/{roomId} {
+      allow get: if isValidId(roomId) && isSignedIn();
+      allow list: if isSignedIn() && (existing().active == true || existing().ownerId == request.auth.uid || isAdmin());
+      allow create: if isValidId(roomId) && isSignedIn() &&
+        incoming().ownerId == request.auth.uid &&
+        isValidVoiceRoom(incoming());
+      allow update: if isValidId(roomId) && isSignedIn() && isValidVoiceRoom(incoming()) && (
+        isAdmin() ||
+        (
+          incoming().ownerId == existing().ownerId &&
+          incoming().createdAt == existing().createdAt &&
+          request.auth.uid == existing().ownerId &&
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'title', 'topic', 'roomType', 'roomPin', 'seatCount', 'themeId',
+            'announcement', 'level', 'xp', 'onlineCount', 'totalGiftCoins',
+            'pkActive', 'moderatorUids', 'active', 'updatedAt'
+          ])
+        ) ||
+        (
+          incoming().ownerId == existing().ownerId &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['onlineCount', 'totalGiftCoins', 'level', 'xp', 'pkActive', 'updatedAt'])
+        )
+      );
+      allow delete: if isValidId(roomId) && (isOwner(existing().ownerId) || isAdmin());
+
+      match /seats/{seatId} {
+        allow get: if isValidId(seatId) && isSignedIn();
+        allow list: if isSignedIn() && existing().roomId == roomId;
+        allow create, update: if isValidId(seatId) && isSignedIn() &&
+          incoming().roomId == roomId &&
+          isValidRoomSeat(incoming());
+        allow delete: if isValidId(seatId) && isAdmin();
+      }
+
+      match /messages/{msgId} {
+        allow get: if isValidId(msgId) && isSignedIn();
+        allow list: if isSignedIn() && existing().roomId == roomId;
+        allow create: if isValidId(msgId) && isSignedIn() &&
+          incoming().roomId == roomId &&
+          incoming().senderId == request.auth.uid &&
+          isValidRoomMessage(incoming());
+        allow update, delete: if isValidId(msgId) && isAdmin();
+      }
+
+      match /members/{memberId} {
+        allow get: if isValidId(memberId) && isSignedIn();
+        allow list: if isSignedIn() && existing().roomId == roomId;
+        allow create, update: if isValidId(memberId) && isSignedIn() &&
+          incoming().roomId == roomId &&
+          isValidRoomMember(incoming());
+        allow delete: if isValidId(memberId) && isSignedIn() && (memberId == request.auth.uid || isAdmin());
+      }
+    }
+
+    // 8. Special ADDA Groups & Subcollections
+    match /adda_groups/{addaId} {
+      allow get: if isValidId(addaId) && isSignedIn();
+      allow list: if isSignedIn() && (existing().publicAdda == true || existing().ownerId == request.auth.uid || request.auth.uid in existing().coAdminUids || isAdmin());
+      allow create: if isValidId(addaId) && isSignedIn() &&
+        incoming().ownerId == request.auth.uid &&
+        isValidAddaGroup(incoming());
+      allow update: if isValidId(addaId) && isSignedIn() && isValidAddaGroup(incoming()) && (
+        isAdmin() ||
+        (
+          incoming().ownerId == existing().ownerId &&
+          incoming().createdAt == existing().createdAt &&
+          (request.auth.uid == existing().ownerId || request.auth.uid in existing().coAdminUids || request.auth.uid in existing().moderatorUids) &&
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'name', 'description', 'rules', 'avatarKey', 'publicAdda', 'themeId',
+            'level', 'xp', 'memberCount', 'seatCount', 'coAdminUids', 'moderatorUids',
+            'mutedUids', 'bannedUids', 'active', 'updatedAt'
+          ])
+        ) ||
+        (
+          incoming().ownerId == existing().ownerId &&
+          incoming().createdAt == existing().createdAt &&
+          !(request.auth.uid in existing().bannedUids) &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['memberCount', 'level', 'xp', 'updatedAt'])
+        )
+      );
+      allow delete: if isValidId(addaId) && (isOwner(existing().ownerId) || isAdmin());
+
+      match /members/{memberId} {
+        allow get: if isValidId(memberId) && isSignedIn();
+        allow list: if isSignedIn() && existing().addaId == addaId;
+        allow create, update: if isValidId(memberId) && isSignedIn() &&
+          incoming().addaId == addaId &&
+          isValidRoomMember(incoming());
+        allow delete: if isValidId(memberId) && isSignedIn();
+      }
+
+      match /seats/{seatId} {
+        allow get: if isValidId(seatId) && isSignedIn();
+        allow list: if isSignedIn() && existing().addaId == addaId;
+        allow create, update: if isValidId(seatId) && isSignedIn() &&
+          incoming().addaId == addaId &&
+          isValidRoomSeat(incoming());
+        allow delete: if isValidId(seatId) && isAdmin();
+      }
+
+      match /messages/{msgId} {
+        allow get: if isValidId(msgId) && isSignedIn();
+        allow list: if isSignedIn() && existing().addaId == addaId;
+        allow create: if isValidId(msgId) && isSignedIn() &&
+          incoming().addaId == addaId &&
+          incoming().senderId == request.auth.uid &&
+          isValidRoomMessage(incoming());
+        allow update, delete: if isValidId(msgId) && isAdmin();
+      }
+    }
+
+    // 9. PK Battles
+    match /pk_battles/{battleId} {
+      allow get: if isValidId(battleId) && isSignedIn();
+      allow list: if isSignedIn() && (existing().status in ['ACTIVE', 'FINISHED'] || isAdmin());
+      allow create: if isValidId(battleId) && isSignedIn() &&
+        incoming().status == 'ACTIVE' &&
+        incoming().winnerTeam == 'NONE' &&
+        isValidPkBattle(incoming());
+      allow update: if isValidId(battleId) && isSignedIn() && isValidPkBattle(incoming()) && (
+        isAdmin() ||
+        (
+          existing().status != 'FINISHED' &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().roomId == existing().roomId &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['redScore', 'blueScore', 'status', 'winnerTeam', 'updatedAt'])
+        )
+      );
+      allow delete: if isValidId(battleId) && isAdmin();
+    }
+
+    // 10. Families
+    match /families/{familyId} {
+      allow get: if isValidId(familyId) && isSignedIn();
+      allow list: if isSignedIn() && (existing().memberCount >= 1 || isAdmin());
+      allow create: if isValidId(familyId) && isSignedIn() &&
+        incoming().ownerId == request.auth.uid &&
+        isValidFamily(incoming());
+      allow update: if isValidId(familyId) && isSignedIn() && isValidFamily(incoming()) && (
+        isAdmin() ||
+        (
+          incoming().ownerId == existing().ownerId &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['name', 'motto', 'crestKey', 'adminUids', 'memberCount', 'level', 'xp', 'totalGiftPoints', 'updatedAt'])
+        )
+      );
+      allow delete: if isValidId(familyId) && (isOwner(existing().ownerId) || isAdmin());
+
+      match /members/{memberId} {
+        allow get: if isValidId(memberId) && isSignedIn();
+        allow list: if isSignedIn() && existing().familyId == familyId;
+        allow create, update: if isValidId(memberId) && isSignedIn() &&
+          incoming().familyId == familyId &&
+          isValidRoomMember(incoming());
+        allow delete: if isValidId(memberId) && isSignedIn() && (memberId == request.auth.uid || isAdmin());
+      }
+
+      match /messages/{msgId} {
+        allow get: if isValidId(msgId) && isSignedIn();
+        allow list: if isSignedIn() && existing().familyId == familyId;
+        allow create: if isValidId(msgId) && isSignedIn() &&
+          incoming().familyId == familyId &&
+          incoming().senderId == request.auth.uid &&
+          isValidRoomMessage(incoming());
+        allow update, delete: if isValidId(msgId) && isAdmin();
+      }
+    }
+
+    // 11. Agencies & Hosts
+    match /agencies/{agencyId} {
+      allow get: if isValidId(agencyId) && isSignedIn();
+      allow list: if isSignedIn() && (existing().hostCount >= 0 || isAdmin());
+      allow create: if isValidId(agencyId) && isSignedIn() &&
+        incoming().ownerId == request.auth.uid &&
+        isValidAgency(incoming());
+      allow update: if isValidId(agencyId) && isSignedIn() && isValidAgency(incoming()) && (
+        isAdmin() ||
+        (
+          incoming().ownerId == existing().ownerId &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['name', 'description', 'managerUids', 'hostCount', 'totalDiamonds', 'commissionPercent', 'updatedAt'])
+        )
+      );
+      allow delete: if isValidId(agencyId) && (isOwner(existing().ownerId) || isAdmin());
+
+      match /hosts/{hostId} {
+        allow get: if isValidId(hostId) && isSignedIn();
+        allow list: if isSignedIn() && existing().agencyId == agencyId;
+        allow create, update: if isValidId(hostId) && isSignedIn() &&
+          incoming().agencyId == agencyId &&
+          isValidAgencyHost(incoming());
+        allow delete: if isValidId(hostId) && isAdmin();
+      }
+    }
+
+    // 12. Friend Requests & Friendships
+    match /friend_requests/{reqId} {
+      allow get: if isValidId(reqId) && isSignedIn() && (existing().fromUid == request.auth.uid || existing().toUid == request.auth.uid);
+      allow list: if isSignedIn() && (existing().fromUid == request.auth.uid || existing().toUid == request.auth.uid);
+      allow create: if isValidId(reqId) && isSignedIn() &&
+        incoming().fromUid == request.auth.uid &&
+        incoming().status == 'PENDING' &&
+        isValidFriendRequest(incoming());
+      allow update: if isValidId(reqId) && isSignedIn() && isValidFriendRequest(incoming()) &&
+        (existing().toUid == request.auth.uid || existing().fromUid == request.auth.uid) &&
+        existing().status == 'PENDING' &&
+        incoming().fromUid == existing().fromUid &&
+        incoming().toUid == existing().toUid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']);
+      allow delete: if isValidId(reqId) && isSignedIn() && (existing().fromUid == request.auth.uid || existing().toUid == request.auth.uid);
+    }
+
+    match /friendships/{pairId} {
+      allow get: if isValidId(pairId) && isSignedIn() && request.auth.uid in existing().userIds;
+      allow list: if isSignedIn() && request.auth.uid in existing().userIds;
+      allow create: if isValidId(pairId) && isSignedIn() &&
+        request.auth.uid in incoming().userIds &&
+        isValidFriendship(incoming());
+      allow update: if false;
+      allow delete: if isValidId(pairId) && isSignedIn() && request.auth.uid in existing().userIds;
+    }
+
+    // 13. Private Chats & Messages
+    match /chats/{chatId} {
+      allow get: if isValidId(chatId) && isSignedIn() && request.auth.uid in existing().participantIds;
+      allow list: if isSignedIn() && request.auth.uid in existing().participantIds;
+      allow create: if isValidId(chatId) && isSignedIn() &&
+        request.auth.uid in incoming().participantIds &&
+        isValidPrivateChat(incoming());
+      allow update: if isValidId(chatId) && isSignedIn() &&
+        request.auth.uid in existing().participantIds &&
+        isValidPrivateChat(incoming()) &&
+        incoming().participantIds == existing().participantIds &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['lastMessage', 'lastSenderId', 'updatedAt']);
+      allow delete: if false;
+
+      match /messages/{msgId} {
+        allow get: if isValidId(msgId) && isSignedIn() && request.auth.uid in existing().participantIds;
+        allow list: if isSignedIn() && request.auth.uid in existing().participantIds;
+        allow create: if isValidId(msgId) && isSignedIn() &&
+          incoming().chatId == chatId &&
+          incoming().senderId == request.auth.uid &&
+          request.auth.uid in incoming().participantIds &&
+          isValidPrivateMessage(incoming());
+        allow update, delete: if false;
+      }
+    }
+
+    // 14. Events, Announcements & Reports
+    match /events/{eventId} {
+      allow get: if isValidId(eventId) && isSignedIn();
+      allow list: if isSignedIn() && (existing().active == true || isAdmin());
+      allow create, update: if isValidId(eventId) && isAdmin() && isValidAppEvent(incoming());
+      allow delete: if isValidId(eventId) && isAdmin();
+    }
+
+    match /announcements/{annId} {
+      allow get: if isValidId(annId) && isSignedIn();
+      allow list: if isSignedIn() && (existing().active == true || isAdmin());
+      allow create, update: if isValidId(annId) && isAdmin() && isValidAnnouncement(incoming());
+      allow delete: if isValidId(annId) && isAdmin();
+    }
+
+    match /reports/{reportId} {
+      allow get: if isValidId(reportId) && isSignedIn() && (existing().reporterId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (existing().reporterId == request.auth.uid || isAdmin());
+      allow create: if isValidId(reportId) && isSignedIn() &&
+        incoming().reporterId == request.auth.uid &&
+        incoming().status == 'OPEN' &&
+        isValidReport(incoming());
+      allow update: if isValidId(reportId) && isAdmin() && isValidReport(incoming());
+      allow delete: if isValidId(reportId) && isAdmin();
+    }
+  }
+}
